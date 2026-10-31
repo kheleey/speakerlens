@@ -1,0 +1,47 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Outputs, caches, data and recordings
+output/
+.cache/
+/data
+voices/
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+*.opus
+*.mp4
+*.webm
+*.npy
+
+recordings/
+logs/
+*.log
+
+# Benchmark results
+bench/*/
+!bench/compare/
+
+# Local model copies (top level only: _vendor/*/models/ is code)
+/models/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store

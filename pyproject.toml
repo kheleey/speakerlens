@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "speakerlens"
+version = "0.1.0"
+description = "Speaker-aware, multi-language transcription with translation and per-person summaries."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [{ name = "Kelly Chandra Wijaya" }]
+keywords = ["speech-recognition", "diarization", "translation", "code-switching", "whisper"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+# Core dependencies are small on purpose: the heavy model libraries are optional extras.
+dependencies = [
+    "numpy>=1.24",
+    "pydantic>=2.6",
+    "typer>=0.12",
+    "rich>=13.7",
+    "python-dotenv>=1.0",
+    "openai>=1.40",
+]
+
+[project.urls]
+Homepage = "https://github.com/kheleey/speakerlens"
+Issues = "https://github.com/kheleey/speakerlens/issues"
+Changelog = "https://github.com/kheleey/speakerlens/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+# Who spoke when (pyannote community-1) + voice enrollment.
+# Tested with pyannote.audio 4.0.7; 4.1 may change the outputs the speaker check relies on.
+diarization = ["pyannote.audio>=4.0.7,<4.1", "torch>=2.8"]
+# English plugin, multilingual fallback plugin and language ID.
+whisper = ["faster-whisper>=1.1"]
+# Mandarin, English and mixed plugins (Fun-ASR-Nano, SenseVoice) and speaker extraction.
+sensevoice = ["funasr>=1.4", "modelscope>=1.15", "torch>=2.8", "torchaudio>=2.8", "pyyaml>=6"]
+all = ["speakerlens[diarization,whisper,sensevoice]"]
+# Benchmarks in bench/ (DER, tcpWER) and building the test sets.
+bench = ["pyannote.metrics>=3.2", "meeteval>=0.4", "pandas>=2.0", "pyarrow>=14", "soundfile>=0.12"]
+dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.10"]
+
+[project.scripts]
+speakerlens = "speakerlens.cli:app"
+
+# Third-party language plugins register themselves under this group:
+# [project.entry-points."speakerlens.plugins"]
+# my_plugin = "my_package.plugin:create_plugins"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/speakerlens"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["src/speakerlens/_vendor"]  # third-party code, kept exactly as published
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["B008"]  # typer uses function calls in argument defaults
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.10"
+exclude = ["src/speakerlens/_vendor/"]
+ignore_missing_imports = true
+warn_unused_ignores = true
