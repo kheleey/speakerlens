@@ -42,7 +42,7 @@ sensevoice = ["funasr>=1.4", "modelscope>=1.15", "torch>=2.8", "torchaudio>=2.8"
 all = ["speakerlens[diarization,whisper,sensevoice]"]
 # Benchmarks in bench/ (DER, tcpWER) and building the test sets.
 bench = ["pyannote.metrics>=3.2", "meeteval>=0.4", "pandas>=2.0", "pyarrow>=14", "soundfile>=0.12"]
-dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.10"]
+dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.10", "scipy>=1.10"]  # scipy: speaker-matching tests
 
 [project.scripts]
 speakerlens = "speakerlens.cli:app"

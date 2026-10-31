@@ -55,6 +55,11 @@ class PyannoteEmbedder(SpeakerEmbedder):
                 model = Model.from_pretrained(self.model, token=self.hf_token)
             except TypeError:
                 model = Model.from_pretrained(self.model, use_auth_token=self.hf_token)
+            if model is None:
+                raise RuntimeError(
+                    f"Could not load {self.model}. Accept its terms on Hugging Face and set "
+                    "HF_TOKEN in your .env file."
+                )
             self._inference = Inference(model, window="whole", device=torch.device(self.device))
         return self._inference
 

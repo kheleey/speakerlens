@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bench"))
 
 from eval_summaries import match_speakers, stm_transcript  # noqa: E402
@@ -23,6 +25,7 @@ def test_stm_transcript_orders_turns_and_numbers_them(tmp_path):
 
 
 def test_system_speakers_are_matched_by_shared_time(tmp_path):
+    pytest.importorskip("scipy")
     (tmp_path / "ref.stm").write_text("m 1 alice 0 5 a\nm 1 bob 5 10 b\n", encoding="utf-8")
     (tmp_path / "hyp.stm").write_text("m 1 S1 0 4.5 a\nm 1 S0 5.2 10 b\n", encoding="utf-8")
     ref = stm_transcript(tmp_path / "ref.stm", "m")
