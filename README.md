@@ -31,6 +31,58 @@ cites the exact turns behind every summary point.
 8. **Translation and per-speaker summaries** with an LLM (DeepSeek, or Ollama locally).
    Summary points must cite their turns; points citing someone else's words are rejected.
 
+## Example
+
+A 10-minute Mandarin–English conversation between two people from
+[ASCEND](https://huggingface.co/datasets/CAiRE/ASCEND) (CC-BY-SA-4.0), run with default
+settings: `speakerlens transcribe conversation.wav --lang zh --lang en --translate-to en
+--speakers 2`. An excerpt of the Markdown output (`…` marks left-out lines); the full output
+covers every topic and also comes as JSON and as subtitles in both languages:
+
+```markdown
+### SPEAKER_01
+
+**Main points**
+- Some people say that for diet maybe seventy percent is controlling what or how much you eat, and the other thirty percent is exercising more. [00:04:48, 00:04:56, 00:05:01, 00:05:04]
+- They can't resist eating, especially at dinner, and love high-sugar, high-calorie things like McDonald's. [00:05:15, 00:05:15, 00:05:17]
+…
+
+### SPEAKER_00
+
+**Main points**
+- Said besides sports, diet is more important, because if you do a lot of sport and then eat a lot, it's not very useful, so you need to balance everything. [00:04:12, 00:04:35, 00:04:42]
+…
+
+**Agreed with**
+- Agreed that they also love sweet things and can't resist them. (with SPEAKER_01) [00:05:25]
+…
+
+## Transcript
+…
+**SPEAKER_00** [00:04:35] `en+zh`
+因为其实如果你做了很多 sport 然后你就回去吃很多东西的话，其实也没有太大的用。
+> Because actually if you do a lot of sport and then you go back and eat a lot of things, it's actually not very useful.
+
+**SPEAKER_00** [00:04:42] `en+zh`
+所以感觉可能各方面都要吧，就各方面都要平衡一下。
+> So it feels like maybe you need everything, you need to balance everything.
+
+**SPEAKER_01** [00:04:48] `en+zh`
+确实，但他们就是有有人讲说说for diet maybe seventy percent is。
+> Indeed, but some people say that for diet maybe seventy percent is.
+
+**SPEAKER_01** [00:04:56] `en+zh`
+To control your what do you eat or how much you eat.
+…
+**SPEAKER_01** [00:05:17] `en+zh`
+对，我就是很喜欢，我特尤其是晚饭，特别喜欢那种高糖高热量的东西，比如说麦当劳这种东西。
+> Right, I really like it, especially at dinner, I especially love those high-sugar, high-calorie things, like McDonald's and stuff.
+
+**SPEAKER_00** [00:05:25] `en+zh` _(overlap)_
+对，我也是因为我本身就很喜欢吃甜的东西嘛，然后就可能偶尔会忍不住吃一些很甜的东西，然后就哎感觉感觉就是来了三个之后又变胖了。
+> Yeah, me too, because I've always loved sweet things, so occasionally I can't resist eating something really sweet, and then, ugh, it feels like after three of them I've gotten fat again.
+```
+
 ## Results
 
 Measured on [ASCEND](https://huggingface.co/datasets/CAiRE/ASCEND) (spontaneous
@@ -79,8 +131,15 @@ without speaker extraction). Speaker extraction is used only for overlapped spee
 ASCEND (little overlap) results are unchanged.
 
 An extraction model fine-tuned on AliMeeting's training meetings does a little better
-(Eval 0.275, Test 0.281; DER 0.219 on both). It isn't downloaded automatically: build it
-with [training/](training/README.md) and set `TSE_MODEL` to its folder.
+(Eval 0.275, Test 0.281; DER 0.219 on both). It isn't downloaded automatically; get it from
+the release (CC-BY-SA-4.0, see its [model card](training/MODEL_CARD.md)) or build it with
+[training/](training/README.md), then point `TSE_MODEL` at its folder:
+
+```bash
+wget https://github.com/kheleey/speakerlens/releases/download/v0.1.0/tse-alimeeting.tar.gz
+mkdir -p models && tar xzf tse-alimeeting.tar.gz -C models
+echo "TSE_MODEL=$PWD/models/tse-alimeeting" >> .env
+```
 
 **Per-person summaries** (AliMeeting Eval, checked against the human transcript; DeepSeek as
 judge, checking who said it and who proposed or agreed):
@@ -362,7 +421,8 @@ and speaker embeddings stay on disk in your cache folder. Get consent before rec
 ## License
 
 Code: Apache-2.0 (see `LICENSE`). Models are downloaded separately under their own licenses:
-pyannote community-1 and WeSpeaker embeddings (CC-BY-4.0, attribution required), Whisper (MIT),
-SenseVoice (FunASR Model License v1.1), WeSep speaker extraction (code Apache-2.0, bundled
-in `src/speakerlens/_vendor/`; checkpoint trained on VoxCeleb1, CC-BY-4.0, attribution
-required). Run `speakerlens licenses` for the full list.
+pyannote community-1 and WeSpeaker embeddings (CC-BY-4.0, attribution required),
+Fun-ASR-Nano (Apache-2.0), Whisper (MIT), SenseVoice (FunASR Model License v1.1), WeSep
+speaker extraction (code Apache-2.0, bundled in `src/speakerlens/_vendor/`; checkpoint
+trained on VoxCeleb1, CC-BY-4.0, attribution required). The optional AliMeeting-tuned
+extraction model is CC-BY-SA-4.0. Run `speakerlens licenses` for the full list.

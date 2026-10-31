@@ -1,7 +1,7 @@
 """Fun-ASR-Nano via FunASR: a speech LLM for Mandarin, English and code-switched speech.
 
 Included in funasr >= 1.4. Needs a GPU for reasonable speed.
-Model license: see https://www.modelscope.cn/models/FunAudioLLM/Fun-ASR-Nano-2512
+Model: https://www.modelscope.cn/models/FunAudioLLM/Fun-ASR-Nano-2512 (Apache-2.0)
 
 - Audio is passed as a torch tensor; FunASR builds no prompt for a numpy array.
 - The language stays on auto by default: forcing one can make the model translate the
@@ -78,7 +78,7 @@ class FunASRNanoPlugin(LanguagePlugin):
             id=plugin_id,
             languages=languages,
             model=model,
-            license="see model card (FunAudioLLM)",
+            license="Apache-2.0",
             mixed=mixed,
             priority=priority,
             needs_gpu=True,

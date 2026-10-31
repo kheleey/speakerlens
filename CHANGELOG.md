@@ -29,6 +29,8 @@ summaries out.
   batch is split and retried; a rejected key or an empty account balance stops at once. The
   transcript is never lost.
 - **Outputs:** Markdown, JSON, SRT/VTT (plus translated SRT), RTTM, STM.
+- **Optional AliMeeting-tuned extraction model** attached to the release
+  (`tse-alimeeting.tar.gz`, CC-BY-SA-4.0); `training/` rebuilds it.
 - **CLI:** `speakerlens transcribe | plugins | licenses | doctor | calibrate`.
 - Measured on ASCEND (code-switching) and AliMeeting (real overlapped meetings), and on two
   real test recordings; see the README. Compared with WhisperX and VibeVoice-ASR on the same

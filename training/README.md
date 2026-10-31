@@ -35,6 +35,8 @@ echo "TSE_MODEL=$PWD/models/tse_ft_run/step_20000" >> .env
 ```
 
 The README's numbers are for `step_20000`, picked on AliMeeting Eval; Test confirmed it.
+That snapshot is attached to the v0.1.0 release as `tse-alimeeting.tar.gz`
+([model card](MODEL_CARD.md)), so you can use it without training.
 
 **License.** AliMeeting is CC-BY-SA-4.0 and the starting model CC-BY-4.0, so a model you
 train this way is best shared under CC-BY-SA-4.0, crediting AliMeeting (Yu et al., M2MeT,
