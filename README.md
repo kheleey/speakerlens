@@ -333,8 +333,31 @@ speakerlens transcribe call.wav --lang auto
 
 speakerlens plugins      # list language plugins
 speakerlens licenses     # model licenses and attribution
-speakerlens --help
+speakerlens doctor       # check the setup
+speakerlens transcribe --help
 ```
+
+**Options of `speakerlens transcribe`**
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `--lang zh --lang en` | `zh`, `en` | Languages spoken; `auto` allows any (slower, less accurate) |
+| `--speakers N` | detected | Number of people; or a range with `--min-speakers`, `--max-speakers` |
+| `--voices DIR` | none | One voice sample per person, named after them: names the speakers and improves who-said-what |
+| `--translate-to en` | off | Translate every turn (needs an LLM) |
+| `--summary` / `--no-summary` | on | Per-person summaries (needs an LLM); `--summary-lang` sets their language |
+| `--extract` / `--no-extract` | on | Recognize overlapping speech from each person's extracted voice |
+| `--reassign-margin` | `0.1` | Speaker check: how clearly a turn must sound like someone else to be moved; `0` turns it off |
+| `--asr-profile` | `auto` | Speech models: `nano` (Fun-ASR-Nano, GPU), `routing` (SenseVoice + Whisper), `auto` picks `nano` on a GPU |
+| `-o DIR` | `output/` | Output folder |
+| `-f md -f json -f srt` | those three | Formats: `md`, `json`, `srt`, `vtt`, `rttm`, `stm` |
+| `--no-cache` | cache on | Run diarization again instead of reusing it |
+| `-v` | off | Detailed log |
+
+Settings you choose once go in `.env`, each explained in `.env.example`: the LLM
+(`LLM_PROVIDER`: DeepSeek, Ollama or none, and its model), `DEVICE`, `ASR_PROFILE`,
+`SPEAKER_EXTRACTION`, `TSE_MODEL` (your own or the AliMeeting-tuned extraction model), the
+Hugging Face mirror and the cache folder. Command-line options override them.
 
 **Tips for the best results**
 - Give `--speakers N` when you know how many people talk.
