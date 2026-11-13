@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>speakerlens</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --ink: #1c2430;
+    --muted: #5f6b78;
+    --paper: #fbfcfc;
+    --panel: #f1f4f6;
+    --rule: #dce2e6;
+    --action: #2459c9;
+    --danger: #b42318;
+    --sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Noto Sans CJK SC",
+      "Microsoft YaHei", sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Georgia, "Noto Serif CJK SC", "Songti SC",
+      "SimSun", serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 15px/1.5 var(--sans); font-variant-numeric: tabular-nums;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  .layout { display: grid; grid-template-columns: 330px 1fr; min-height: 100vh; }
+  aside {
+    background: var(--panel); border-right: 1px solid var(--rule);
+    padding: 22px 22px 90px; display: flex; flex-direction: column; gap: 22px;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  main { padding: 26px 40px 140px; min-width: 0; }
+  .brand { font-weight: 650; font-size: 19px; letter-spacing: -0.01em; margin: 0; }
+  .brand small { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
+
+  .problems { border-left: 3px solid var(--danger); padding: 4px 0 4px 12px; font-size: 13.5px; }
+  .problems p { margin: 0 0 4px; font-weight: 600; color: var(--danger); }
+  .problems ul { margin: 0; padding-left: 18px; }
+
+  form { display: flex; flex-direction: column; gap: 14px; }
+  .drop {
+    border: 1.5px dashed #a9b4be; border-radius: 10px; padding: 18px 14px; text-align: center;
+    background: var(--paper); cursor: pointer;
+  }
+  .drop.over { border-color: var(--action); background: #eef3fc; }
+  .drop strong { display: block; }
+  .drop span { font-size: 13px; color: var(--muted); }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; font-weight: 550; }
+  label.field .hint { font-weight: 400; color: var(--muted); font-size: 12.5px; }
+  input[type=number], select {
+    border: 1px solid #c5cdd4; border-radius: 6px; padding: 7px 9px; background: #fff; width: 100%;
+  }
+  .check { display: flex; gap: 9px; align-items: flex-start; font-size: 13.5px; }
+  .check input { margin-top: 3px; }
+  .check span small { display: block; color: var(--muted); font-size: 12.5px; }
+  .primary {
+    background: var(--action); color: #fff; border: 0; border-radius: 7px; padding: 10px 14px;
+    font-weight: 600; cursor: pointer;
+  }
+  .primary:disabled { opacity: .55; cursor: default; }
+  .note { font-size: 12.5px; color: var(--muted); margin: 0; }
+  .error { color: var(--danger); font-size: 13.5px; margin: 0; }
+
+  .recent h2 { font-size: 13.5px; margin: 0 0 6px; }
+  .recent ol { list-style: none; margin: 0; padding: 0; }
+  .recent button {
+    width: 100%; text-align: left; background: none; border: 0; border-radius: 6px;
+    padding: 7px 8px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px;
+  }
+  .recent button:hover, .recent button[aria-current=true] { background: #e3e8ec; }
+  .recent .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .recent .state { color: var(--muted); font-size: 12.5px; flex: none; }
+
+  .empty { max-width: 34em; margin-top: 12vh; }
+  .empty h1 { font-size: 30px; line-height: 1.2; font-weight: 650; letter-spacing: -0.015em; margin: 0 0 12px; }
+  .empty p { color: var(--muted); font-size: 16px; margin: 0 0 8px; }
+
+  .head h1 { font-size: 24px; font-weight: 650; margin: 0; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+  .meta { color: var(--muted); margin: 2px 0 0; }
+  .downloads { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .downloads a {
+    font-size: 13px; text-decoration: none; color: var(--action); border: 1px solid #c4d3f1;
+    border-radius: 999px; padding: 3px 11px; background: #fff;
+  }
+  .warnings { margin: 14px 0 0; font-size: 13.5px; border-left: 3px solid #b7791f; padding-left: 12px; }
+  .warnings ul { margin: 2px 0 0; padding-left: 18px; }
+
+  /* The one bold element: who spoke when, as a lane per person across the recording. */
+  .ribbon { margin: 26px 0 8px; position: relative; }
+  .lane { display: grid; grid-template-columns: 150px 1fr; align-items: center; gap: 12px; height: 34px; }
+  .lane .who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .lane input {
+    border: 1px solid transparent; background: transparent; border-radius: 5px; padding: 2px 5px;
+    width: 100%; min-width: 0; font-weight: 600;
+  }
+  .lane input:hover { border-color: var(--rule); }
+  .lane input:focus { border-color: var(--action); background: #fff; }
+  .track { position: relative; height: 18px; background: #eef1f3; border-radius: 4px; cursor: pointer; }
+  .track i { position: absolute; top: 0; bottom: 0; border-radius: 2px; min-width: 2px; }
+  .track i.ov { top: 4px; bottom: 4px; opacity: .55; }
+  .axis { display: grid; grid-template-columns: 150px 1fr; gap: 12px; font-size: 12px; color: var(--muted); }
+  .axis div { display: flex; justify-content: space-between; }
+  .playhead {
+    position: absolute; top: 0; bottom: 18px; width: 2px; background: var(--ink); pointer-events: none;
+  }
+  .ribbon-hint { font-size: 12.5px; color: var(--muted); margin: 4px 0 0; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rule); margin: 28px 0 0; }
+  .tabs button {
+    border: 0; background: none; padding: 9px 14px; cursor: pointer; color: var(--muted);
+    border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 550;
+  }
+  .tabs button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--ink); }
+
+  .overview { font-family: var(--serif); font-size: 17px; line-height: 1.65; max-width: 44em; margin: 22px 0 6px; }
+  .dropped { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+  .person { border-top: 1px solid var(--rule); padding: 18px 0 6px; max-width: 48em; }
+  .person h3 { margin: 0 0 8px; font-size: 17px; display: flex; align-items: center; gap: 9px; }
+  .person h4 { margin: 12px 0 4px; font-size: 13.5px; color: var(--muted); font-weight: 600; }
+  .person ul { margin: 0; padding-left: 20px; }
+  .person li { font-family: var(--serif); font-size: 16px; line-height: 1.65; margin: 0 0 4px; }
+  .with { font-family: var(--sans); font-size: 13px; color: var(--muted); }
+  .cite {
+    font-family: var(--sans); font-size: 12px; border: 1px solid var(--rule); background: #fff;
+    border-radius: 999px; padding: 0 7px; margin-left: 4px; cursor: pointer; color: var(--action);
+  }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 6px; }
+  .filters button {
+    border: 1px solid var(--rule); background: #fff; border-radius: 999px; padding: 3px 11px 3px 8px;
+    cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px;
+  }
+  .filters button[aria-pressed=false] { opacity: .45; }
+  .turn {
+    display: grid; grid-template-columns: 74px 1fr; gap: 14px; padding: 9px 10px 9px 0;
+    border-left: 3px solid transparent; max-width: 54em;
+  }
+  .turn.now { background: #eef3fc; }
+  .turn.flash { animation: flash 1.2s ease-out; }
+  @keyframes flash { from { background: #fff1c2; } to { background: transparent; } }
+  .turn .time {
+    background: none; border: 0; padding: 2px 0 0 10px; color: var(--muted); cursor: pointer;
+    font-size: 13px; text-align: left; align-self: start;
+  }
+  .turn .speaker { font-weight: 650; font-size: 13.5px; }
+  .turn .tag { font-size: 12px; color: var(--muted); margin-left: 6px; }
+  .turn .text { font-family: var(--serif); font-size: 16.5px; line-height: 1.65; margin: 1px 0 0; }
+  .turn .tr { font-size: 14.5px; color: var(--muted); margin: 2px 0 0; line-height: 1.55; }
+
+  .progress { max-width: 34em; margin-top: 26px; }
+  .progress ol { list-style: none; padding: 0; margin: 0; }
+  .progress li { padding: 6px 0; display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; }
+  .progress .mark { color: var(--muted); }
+  .progress li.done .mark { color: #1f7a4d; }
+  .progress li.current { font-weight: 600; }
+  .bar { height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; margin-top: 4px; grid-column: 2 / 4; }
+  .bar span { display: block; height: 100%; background: var(--action); }
+  .failed { border-left: 3px solid var(--danger); padding: 4px 0 4px 12px; margin-top: 18px; }
+  .failed p { margin: 0 0 4px; }
+  .caution { font-size: 12.5px; color: var(--muted); margin: 34px 0 0; max-width: 48em; }
+
+  .player {
+    position: fixed; left: 330px; right: 0; bottom: 0; background: rgba(251,252,252,.96);
+    border-top: 1px solid var(--rule); padding: 10px 40px; backdrop-filter: blur(6px);
+  }
+  .player audio { width: 100%; height: 36px; }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    aside { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); padding-bottom: 22px; }
+    main { padding: 22px 18px 130px; }
+    .player { left: 0; padding: 8px 14px; }
+    .lane, .axis { grid-template-columns: 96px 1fr; }
+    .turn { grid-template-columns: 58px 1fr; gap: 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .turn.flash { animation: none; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <p class="brand">speakerlens<small>Who said what, in every language spoken</small></p>
+
+    <div class="problems" id="problems" hidden>
+      <p>Not ready to transcribe yet</p>
+      <ul></ul>
+    </div>
+
+    <form id="upload">
+      <label class="drop" id="drop">
+        <input type="file" name="audio" id="audio" accept="audio/*,video/*" required>
+        <strong id="drop-title">Choose a recording</strong>
+        <span id="drop-hint">or drop it here. Audio or video, up to about 2 hours.</span>
+      </label>
+
+      <label class="field">Number of people
+        <input type="number" name="speakers" min="1" max="20" placeholder="Detect automatically">
+        <span class="hint">Giving the right number improves who-said-what.</span>
+      </label>
+
+      <label class="field">Languages spoken
+        <select name="languages">
+          <option value="zh+en" selected>Mandarin and English</option>
+          <option value="zh">Mandarin only</option>
+          <option value="en">English only</option>
+          <option value="auto">Any language (slower)</option>
+        </select>
+      </label>
+
+      <label class="field">Translate into
+        <select name="translate_to">
+          <option value="">Don't translate</option>
+          <option value="en" selected>English</option>
+          <option value="zh">Chinese</option>
+          <option value="id">Indonesian</option>
+          <option value="ja">Japanese</option>
+          <option value="ko">Korean</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="es">Spanish</option>
+        </select>
+      </label>
+
+      <label class="check"><input type="checkbox" name="summary" value="on" checked>
+        <span>Summarize each person's points<small>With who agreed or disagreed with whom.</small></span>
+      </label>
+
+      <label class="check"><input type="checkbox" name="extract" value="on" id="extract" checked>
+        <span>Recover people talking over each other<small>Pulls each voice out of overlapping speech.</small></span>
+      </label>
+
+      <label class="field">Voice samples (optional)
+        <input type="file" name="voices" multiple accept="audio/*,video/*">
+        <span class="hint">10–30 s of each person alone, one file each, named after them (Alice.m4a). Puts names on the speakers.</span>
+      </label>
+
+      <button class="primary" id="submit" type="submit">Transcribe</button>
+      <p class="error" id="form-error" hidden></p>
+      <p class="note" id="llm-note" hidden></p>
+    </form>
+
+    <nav class="recent" id="recent" hidden aria-label="Recordings">
+      <h2>Recordings</h2>
+      <ol></ol>
+    </nav>
+  </aside>
+
+  <main id="main">
+    <section class="empty" id="empty">
+      <h1>Upload a recording to see who said what.</h1>
+      <p>You'll get a transcript with each person kept apart, a translation under every line, and a separate summary of each person's points that links back to where they said it.</p>
+      <p>Everything runs on this machine.</p>
+    </section>
+    <section id="view" hidden></section>
+  </main>
+</div>
+<div class="player" id="player" hidden><audio id="audio-el" controls preload="metadata"></audio></div>
+
+<script>
+"use strict";
+const COLORS = ["#2a7ab0", "#c0392b", "#2e8b57", "#8e44ad", "#b7791f", "#0f8b8d", "#d63384", "#5d6d7e"];
+const CATEGORIES = [
+  ["main_points", "Main points"],
+  ["agreements", "Agreed with"],
+  ["disagreements", "Disagreed with"],
+  ["open_questions", "Open questions"],
+];
+const STATE_LABEL = { queued: "Waiting", running: "Working", done: "Done", error: "Failed" };
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const audioEl = $("#audio-el");
+let current = null;      // job id on screen
+let transcript = null;   // its result
+let pollTimer = null;
+let tab = "summaries";
+let lastJob = null;     // status of the recording on screen, for re-rendering
+let lastNow = null;     // transcript line being played
+let hidden = new Set();  // speakers filtered out of the transcript
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined && v !== false) node.setAttribute(k, v === true ? "" : v);
+  }
+  for (const child of children.flat(Infinity)) {
+    if (child !== null && child !== undefined && child !== false) node.append(child);
+  }
+  return node;
+}
+
+function fill(node, ...children) {
+  node.replaceChildren(...children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false));
+  return node;
+}
+
+function clock(seconds) {
+  const s = Math.max(0, Math.round(seconds));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  const mm = String(m).padStart(h ? 2 : 1, "0"), ss = String(r).padStart(2, "0");
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+async function api(path, options = {}) {
+  const res = await fetch(path, options);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `The server answered ${res.status}.`);
+  return body;
+}
+
+/* ---------- setup and upload ---------- */
+
+async function loadInfo() {
+  try {
+    const info = await api("/api/info");
+    if (info.problems.length) {
+      const box = $("#problems");
+      box.hidden = false;
+      $("ul", box).replaceChildren(...info.problems.map((p) => el("li", {}, p)));
+    }
+    $("#extract").checked = info.extract_default;
+    const note = $("#llm-note");
+    if (!info.llm.enabled) {
+      note.textContent = "Translation and summaries need an LLM: set DEEPSEEK_API_KEY or LLM_PROVIDER=ollama in .env. Without one you still get the transcript.";
+      note.hidden = false;
+    } else if (!info.llm.local) {
+      const provider = { deepseek: "DeepSeek" }[info.llm.provider] || info.llm.provider;
+      note.textContent = `Transcript text (never audio) is sent to ${provider} for translation and summaries.`;
+      note.hidden = false;
+    }
+  } catch (err) {
+    showFormError(err.message);
+  }
+}
+
+function showFormError(message) {
+  const box = $("#form-error");
+  box.textContent = message;
+  box.hidden = !message;
+}
+
+const fileInput = $("#audio");
+function showChosen() {
+  const f = fileInput.files[0];
+  $("#drop-title").textContent = f ? f.name : "Choose a recording";
+  $("#drop-hint").textContent = f ? `${(f.size / 1e6).toFixed(1)} MB` : "or drop it here. Audio or video, up to about 2 hours.";
+}
+fileInput.addEventListener("change", showChosen);
+const drop = $("#drop");
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  drop.classList.remove("over");
+  if (e.dataTransfer.files.length) {
+    fileInput.files = e.dataTransfer.files;
+    showChosen();
+  }
+});
+
+$("#upload").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  showFormError("");
+  if (!fileInput.files.length) return showFormError("Choose a recording first.");
+  const button = $("#submit");
+  button.disabled = true;
+  button.textContent = "Uploading…";
+  try {
+    const job = await api("/api/jobs", { method: "POST", body: new FormData(e.target) });
+    e.target.reset();
+    showChosen();
+    await loadInfo();
+    await refreshRecent();
+    openJob(job.id);
+  } catch (err) {
+    showFormError(err.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Transcribe";
+  }
+});
+
+/* ---------- recordings list ---------- */
+
+async function refreshRecent() {
+  let jobs = [];
+  try { jobs = await api("/api/jobs"); } catch { return; }
+  const nav = $("#recent");
+  nav.hidden = jobs.length === 0;
+  $("ol", nav).replaceChildren(...jobs.map((j) => el("li", {},
+    el("button", { type: "button", "aria-current": j.id === current ? "true" : "false", onclick: () => openJob(j.id) },
+      el("span", { class: "name", title: j.name }, j.name),
+      el("span", { class: "state" }, STATE_LABEL[j.state] || j.state)))));
+}
+
+/* ---------- one recording ---------- */
+
+async function openJob(id) {
+  current = id;
+  transcript = null;
+  hidden = new Set();
+  tab = "summaries";
+  clearTimeout(pollTimer);
+  $("#empty").hidden = true;
+  $("#view").hidden = false;
+  $("#player").hidden = true;
+  audioEl.removeAttribute("src");
+  await poll();
+  refreshRecent();
+}
+
+async function poll() {
+  const id = current;
+  let job;
+  try { job = await api(`/api/jobs/${id}`); } catch (err) {
+    fill($("#view"), el("div", { class: "failed" }, el("p", {}, err.message)));
+    return;
+  }
+  if (id !== current) return;
+  if (job.state === "done") {
+    transcript = await api(`/api/jobs/${id}/result`);
+    if (id !== current) return;
+    renderResult(job);
+    refreshRecent();
+    return;
+  }
+  renderProgress(job);
+  if (job.state === "error") { refreshRecent(); return; }
+  pollTimer = setTimeout(poll, 1500);
+}
+
+function renderProgress(job) {
+  const rows = job.stages.map((s, i) => {
+    const last = i === job.stages.length - 1 && job.state === "running";
+    const finished = s.done >= s.total && !last;
+    const showBar = last && s.total > 1;
+    return el("li", { class: finished ? "done" : last ? "current" : "" },
+      el("span", { class: "mark", "aria-hidden": "true" }, finished ? "✓" : last ? "•" : ""),
+      el("span", {}, s.name),
+      el("span", { class: "note" }, s.total > 1 ? `${s.done} of ${s.total}` : ""),
+      showBar ? el("div", { class: "bar" }, el("span", { style: `width:${(100 * s.done / s.total).toFixed(1)}%` })) : null);
+  });
+  let status;
+  if (job.state === "queued") {
+    status = job.queue_position > 0
+      ? `Waiting for ${job.queue_position} recording${job.queue_position > 1 ? "s" : ""} ahead of it.`
+      : "Starting…";
+  } else if (job.state === "running") {
+    status = `Working for ${clock(job.elapsed)}. The first recording takes longer while the models load.`;
+  }
+  fill($("#view"),
+    el("div", { class: "head" }, el("h1", {}, job.name), status ? el("p", { class: "meta" }, status) : null),
+    el("div", { class: "progress" }, el("ol", { "aria-live": "polite" }, rows)),
+    job.state === "error" ? el("div", { class: "failed" },
+      el("p", {}, el("strong", {}, "This recording couldn't be processed.")),
+      el("p", {}, job.error),
+      el("p", { class: "note" }, "Check the terminal running speakerlens web for details, or run speakerlens doctor.")) : null,
+    warningsBox(job.warnings));
+}
+
+function warningsBox(warnings) {
+  if (!warnings || !warnings.length) return null;
+  return el("div", { class: "warnings" }, el("strong", {}, "Notes from this run"),
+    el("ul", {}, warnings.map((w) => el("li", {}, w))));
+}
+
+function speakerInfo() {
+  const map = new Map();
+  transcript.speakers.forEach((s, i) => map.set(s.id, { label: s.name || s.id, color: COLORS[i % COLORS.length] }));
+  return map;
+}
+
+function renderResult(job) {
+  lastJob = job;
+  lastNow = null;
+  const speakers = speakerInfo();
+  const t = transcript;
+  const meta = `${clock(t.duration)} long, ${t.speakers.length} ${t.speakers.length === 1 ? "person" : "people"}, ${t.turns.length} lines`;
+  const translated = t.target_language || t.turns.some((x) => x.translation && x.translation !== x.text);
+
+  const downloads = el("div", { class: "downloads" }, job.files.map((name) =>
+    el("a", { href: `/api/jobs/${job.id}/files/${encodeURIComponent(name)}`, download: name }, fileLabel(name))));
+
+  fill($("#view"),
+    el("div", { class: "head" }, el("h1", {}, job.name), el("p", { class: "meta" }, meta)),
+    downloads,
+    warningsBox(job.warnings),
+    ribbon(speakers),
+    el("div", { class: "tabs", role: "tablist" },
+      tabButton("summaries", "Per-person summaries"),
+      tabButton("transcript", translated ? "Transcript and translation" : "Transcript")),
+    el("div", { id: "tab-body" }),
+    el("p", { class: "caution" }, "Machine-generated. Speakers can be mixed up where people talk over each other, and English words inside Mandarin are sometimes misheard. Check against the audio before quoting anyone."));
+  renderTab(speakers);
+
+  const src = `/api/jobs/${job.id}/audio`;
+  if (audioEl.getAttribute("src") !== src) audioEl.src = src;
+  $("#player").hidden = false;
+}
+
+function fileLabel(name) {
+  if (name.endsWith(".md")) return "Markdown";
+  if (name.endsWith(".json")) return "JSON";
+  if (name.endsWith(".vtt")) return "Subtitles (VTT)";
+  const m = name.match(/\.([a-z-]+)\.srt$/);
+  return m ? `Subtitles, ${m[1]} (SRT)` : "Subtitles (SRT)";
+}
+
+function tabButton(id, label) {
+  return el("button", {
+    type: "button", role: "tab", "aria-selected": tab === id ? "true" : "false",
+    onclick: () => { tab = id; renderResult(lastJob); },
+  }, label);
+}
+
+/* who spoke when: one lane per person */
+function ribbon(speakers) {
+  const t = transcript;
+  const dur = Math.max(t.duration, 1);
+  const lanes = t.speakers.map((s) => {
+    const info = speakers.get(s.id);
+    const blocks = t.turns.filter((x) => x.speaker === s.id).map((x) => el("i", {
+      class: x.overlap ? "ov" : "",
+      style: `left:${(100 * x.start / dur).toFixed(3)}%;width:${(100 * (x.end - x.start) / dur).toFixed(3)}%;background:${info.color}`,
+    }));
+    const name = el("input", {
+      value: info.label, "aria-label": `Name for ${s.id}`, title: "Rename this person",
+      onchange: (e) => rename(s.id, e.target.value),
+      onkeydown: (e) => { if (e.key === "Enter") e.target.blur(); },
+    });
+    const track = el("div", { class: "track", onclick: (e) => seekFromTrack(e, dur) }, blocks);
+    return el("div", { class: "lane" },
+      el("div", { class: "who" }, el("span", { class: "swatch", style: `background:${info.color}` }), name),
+      track);
+  });
+  const head = el("div", { class: "playhead", id: "playhead", hidden: true });
+  return el("div", { class: "ribbon" }, lanes,
+    el("div", { class: "axis" }, el("span"), el("div", {}, el("span", {}, "0:00"), el("span", {}, clock(t.duration)))),
+    head,
+    el("p", { class: "ribbon-hint" }, "Click a lane to listen from that moment. Click a name to rename the person."));
+}
+
+function seekFromTrack(e, dur) {
+  const box = e.currentTarget.getBoundingClientRect();
+  const at = dur * Math.min(1, Math.max(0, (e.clientX - box.left) / box.width));
+  playFrom(at);
+  const turn = transcript.turns.find((x) => x.end >= at) || transcript.turns[transcript.turns.length - 1];
+  if (turn && tab === "transcript") flashTurn(turn.id);
+}
+
+async function rename(id, name) {
+  try {
+    transcript = await api(`/api/jobs/${current}/speakers`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [id]: name }),
+    });
+    const job = await api(`/api/jobs/${current}`);
+    lastJob = job;
+    renderResult(job);
+  } catch (err) {
+    alertInView(err.message);
+  }
+}
+
+function alertInView(message) {
+  $("#view").prepend(el("div", { class: "failed" }, el("p", {}, message)));
+}
+
+function renderTab(speakers) {
+  const body = $("#tab-body");
+  body.replaceChildren(tab === "summaries" ? summaries(speakers) : transcriptView(speakers));
+}
+
+function summaries(speakers) {
+  const s = transcript.summary;
+  if (!s) {
+    return el("p", { class: "overview" }, "No summaries for this recording. Turn on “Summarize each person's points” and set up an LLM to get them.");
+  }
+  const parts = [];
+  if (s.overview) parts.push(el("p", { class: "overview" }, s.overview));
+  if (s.rejected_points && s.rejected_points.length) {
+    parts.push(el("p", { class: "dropped" },
+      `${s.rejected_points.length} point${s.rejected_points.length > 1 ? "s were" : " was"} left out because ${s.rejected_points.length > 1 ? "they" : "it"} cited someone else's words. The JSON file lists them.`));
+  }
+  for (const person of s.speakers) {
+    const info = speakers.get(person.speaker) || { label: person.speaker, color: "#888" };
+    const sections = CATEGORIES.filter(([key]) => person[key] && person[key].length).map(([key, title]) =>
+      [el("h4", {}, title), el("ul", {}, person[key].map((p) => point(p, speakers)))]);
+    if (!sections.length) continue;
+    parts.push(el("section", { class: "person" },
+      el("h3", {}, el("span", { class: "swatch", style: `background:${info.color}` }), info.label),
+      sections));
+  }
+  return el("div", {}, parts);
+}
+
+function point(p, speakers) {
+  const withWho = p.with_speaker ? el("span", { class: "with" }, ` with ${(speakers.get(p.with_speaker) || { label: p.with_speaker }).label}`) : null;
+  const cites = p.turn_ids.map((id) => transcript.turns.find((x) => x.id === id)).filter(Boolean).map((turn) =>
+    el("button", { type: "button", class: "cite", title: "Show this line in the transcript", onclick: () => goToTurn(turn) }, clock(turn.start)));
+  return el("li", {}, p.text, withWho, cites);
+}
+
+function goToTurn(turn) {
+  tab = "transcript";
+  if (hidden.has(turn.speaker)) hidden.delete(turn.speaker);
+  renderResult(lastJob);
+  flashTurn(turn.id);
+  playFrom(turn.start, false);
+}
+
+function transcriptView(speakers) {
+  const filters = el("div", { class: "filters", role: "group", "aria-label": "Show people" },
+    transcript.speakers.map((s) => {
+      const info = speakers.get(s.id);
+      return el("button", {
+        type: "button", "aria-pressed": hidden.has(s.id) ? "false" : "true",
+        onclick: () => { hidden.has(s.id) ? hidden.delete(s.id) : hidden.add(s.id); renderTab(speakers); },
+      }, el("span", { class: "swatch", style: `background:${info.color}` }), info.label);
+    }));
+  const rows = transcript.turns.filter((x) => !hidden.has(x.speaker)).map((x) => {
+    const info = speakers.get(x.speaker) || { label: x.speaker, color: "#888" };
+    const tags = [];
+    if (x.language) tags.push(x.language);
+    if (x.overlap) tags.push("overlapping");
+    return el("div", { class: "turn", id: `turn-${x.id}`, style: `border-left-color:${info.color}` },
+      el("button", { type: "button", class: "time", title: "Play from here", onclick: () => playFrom(x.start) }, clock(x.start)),
+      el("div", {},
+        el("span", { class: "speaker", style: `color:${info.color}` }, info.label),
+        tags.length ? el("span", { class: "tag" }, tags.join(", ")) : null,
+        el("p", { class: "text" }, x.text),
+        x.translation && x.translation !== x.text ? el("p", { class: "tr" }, x.translation) : null));
+  });
+  return el("div", {}, filters, rows.length ? rows : el("p", { class: "note" }, "Everyone is hidden. Click a name above to show their lines."));
+}
+
+function flashTurn(id) {
+  const node = document.getElementById(`turn-${id}`);
+  if (!node) return;
+  node.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  node.classList.remove("flash");
+  void node.offsetWidth;
+  node.classList.add("flash");
+}
+
+function playFrom(seconds, autoplay = true) {
+  if (!audioEl.src) return;
+  audioEl.currentTime = Math.max(0, seconds - 0.2);
+  if (autoplay) audioEl.play().catch(() => {});
+}
+
+/* follow the audio: move the playhead, mark the line being spoken */
+audioEl.addEventListener("timeupdate", () => {
+  if (!transcript) return;
+  const at = audioEl.currentTime;
+  const head = document.getElementById("playhead");
+  const track = document.querySelector(".track");
+  if (head && track) {
+    const ribbonBox = head.parentElement.getBoundingClientRect();
+    const box = track.getBoundingClientRect();
+    head.hidden = false;
+    head.style.left = `${box.left - ribbonBox.left + box.width * Math.min(1, at / Math.max(transcript.duration, 1))}px`;
+  }
+  const turn = transcript.turns.find((x) => x.start <= at && at < x.end && !hidden.has(x.speaker));
+  const id = turn ? `turn-${turn.id}` : null;
+  if (id !== lastNow) {
+    if (lastNow) document.getElementById(lastNow)?.classList.remove("now");
+    if (id) document.getElementById(id)?.classList.add("now");
+    lastNow = id;
+  }
+});
+audioEl.addEventListener("error", () => {
+  if (audioEl.getAttribute("src")) {
+    $("#player").hidden = true;
+  }
+});
+
+loadInfo();
+refreshRecent().then(() => {
+  const first = document.querySelector(".recent button");
+  if (first) first.click();
+});
+</script>
+</body>
+</html>

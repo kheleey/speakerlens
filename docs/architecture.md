@@ -215,5 +215,5 @@ Two scripted 3-person Mandarin-English recordings on one phone (mono), no voice 
 ## Not yet built
 
 - Live mode.
-- Web viewer.
+- Merging two speakers into one in the web page (renaming works).
 - Confidence scores and word timestamps for SenseVoice and Fun-ASR-Nano.

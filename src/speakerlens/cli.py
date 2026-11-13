@@ -200,6 +200,47 @@ def transcribe(
 
 
 @app.command()
+def web(
+    host: Annotated[
+        str,
+        typer.Option(
+            help="Address to listen on. 127.0.0.1 keeps the page private to this computer."
+        ),
+    ] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port for the page.")] = 7860,
+    out: Annotated[
+        Path, typer.Option("--out", "-o", help="Folder for uploaded recordings and results.")
+    ] = Path("output/web"),
+    env_file: EnvFile = None,
+    verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False,
+) -> None:
+    """Open a local web page: upload a recording, read who said what."""
+    _setup_logging(verbose)
+    try:
+        from speakerlens.web import serve
+    except ImportError as exc:
+        console.print(
+            f"[red]The web page needs a few more packages ({exc.name}):[/red] "
+            + escape("pip install -e '.[web]'")
+        )
+        raise typer.Exit(1) from exc
+    settings = _settings(env_file)
+    console.print(f"speakerlens web page: [bold]http://{host}:{port}[/bold]  (Ctrl+C to stop)")
+    if host in ("127.0.0.1", "localhost"):
+        console.print(
+            "On a remote server, open it through VS Code's Ports tab, or from your own computer "
+            f"run: ssh -L {port}:localhost:{port} <server>"
+        )
+    else:
+        console.print(
+            "[yellow]Note:[/yellow] the page has no login. Anyone who can reach this address can "
+            "upload recordings and read the results."
+        )
+    console.print(f"Recordings and results are saved in {out}/")
+    serve(settings, out, host, port)
+
+
+@app.command()
 def plugins(env_file: EnvFile = None) -> None:
     """List language plugins and which languages they cover."""
     from speakerlens.plugins.registry import default_registry

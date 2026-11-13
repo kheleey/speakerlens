@@ -334,6 +334,7 @@ speakerlens transcribe call.wav --lang auto
 speakerlens plugins      # list language plugins
 speakerlens licenses     # model licenses and attribution
 speakerlens doctor       # check the setup
+speakerlens web          # the same in a web page, see below
 speakerlens transcribe --help
 ```
 
@@ -375,6 +376,28 @@ Hugging Face mirror and the cache folder. Command-line options override them.
 Outputs go to `output/`: a readable Markdown file with summaries and the transcript,
 JSON with every detail, and SRT subtitles (plus a translated SRT when you use `--translate-to`).
 
+### Web page
+
+Prefer a browser to the command line? Start the local web page:
+
+```bash
+speakerlens web          # then open http://127.0.0.1:7860
+```
+
+![The speakerlens web page: who spoke when, and each person's points](docs/web.png)
+
+Upload a recording, choose the number of people, the languages and the translation language,
+and follow the progress. The result shows who spoke when as one lane per person, each
+person's summary, and the transcript with its translation. Click a point's time to jump to the
+line it came from, click a line or a lane to listen from there, and click a name to rename
+someone; the downloads (Markdown, JSON, subtitles) follow the new names. Recordings are
+processed one at a time and kept in `output/web/`, so they're still listed after a restart.
+
+The page runs on your machine and has no login, so it only listens on this computer by default.
+On a remote server, open it through VS Code's Ports tab, or run
+`ssh -L 7860:localhost:7860 <server>` on your own computer. `--port` and `--out` change the port
+and the folder.
+
 ## Project layout
 
 ```
@@ -396,6 +419,7 @@ src/speakerlens/
   pipeline.py         runs everything in order
   export.py           Markdown, JSON, SRT/VTT, RTTM, STM
   cli.py              the `speakerlens` command
+  web.py, web_page.html  the local web page (`speakerlens web`)
 tests/                fast tests with fake models (no downloads needed)
 bench/                benchmark scripts behind the README numbers (not installed)
 training/             fine-tuning the extraction model on AliMeeting (not installed)

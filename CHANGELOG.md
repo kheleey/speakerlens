@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Web page** (`speakerlens web`): upload a recording, follow its progress, and read the
+  result in the browser: who spoke when as a lane per person, each person's summary with
+  links to the lines it cites, the transcript with translations, playback from any line, and
+  renaming speakers (the downloads follow the new names). Runs locally, one recording at a
+  time, and lists earlier recordings after a restart. Installed with `.[web]`, included in
+  `.[all]`.
+
 ## 0.1.0 (2026-10-31)
 
 First version: a recording in, a speaker-labeled, translated transcript with per-speaker
