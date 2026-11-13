@@ -7,7 +7,7 @@ Most speech-to-text tools give you one block of text, so a summary blends everyo
 together. speakerlens keeps speakers apart, handles mixed Mandarin–English speech, and
 cites the exact turns behind every summary point.
 
-> Status: v0.1. Tested on benchmark data and a first pair of real recordings (see Results).
+> Status: v0.2. Tested on benchmark data and a first pair of real recordings (see Results).
 
 ## How it works
 
@@ -385,6 +385,7 @@ speakerlens web          # then open http://127.0.0.1:7860
 ```
 
 ![The speakerlens web page: who spoke when, and each person's points](docs/web.png)
+<sub>The same [ASCEND](https://huggingface.co/datasets/CAiRE/ASCEND) conversation as the example above (CC-BY-SA-4.0); the names were added with the page's renaming.</sub>
 
 Upload a recording, choose the number of people, the languages and the translation language,
 and follow the progress. The result shows who spoke when as one lane per person, each
@@ -392,6 +393,9 @@ person's summary, and the transcript with its translation. Click a point's time 
 line it came from, click a line or a lane to listen from there, and click a name to rename
 someone; the downloads (Markdown, JSON, subtitles) follow the new names. Recordings are
 processed one at a time and kept in `output/web/`, so they're still listed after a restart.
+If you leave the number of people empty, the page says how many it found and lets you run the
+recording again with a different number; giving the right number helps most when someone keeps
+talking over the others.
 
 The page runs on your machine and has no login, so it only listens on this computer by default.
 On a remote server, open it through VS Code's Ports tab, or run

@@ -180,6 +180,8 @@ class Job:
             "created": self.created,
             "elapsed": round(now - self.started, 1) if self.started else 0.0,
             "files": self.files,
+            "speakers_given": self.options.num_speakers,
+            "can_rerun": self.audio.is_file(),
         }
 
 
@@ -276,6 +278,21 @@ class JobManager:
             job.error = f"{type(failure).__name__}: {failure}"
             job.state = "error"
 
+    def rerun(self, job: Job, speakers: int | None) -> Job:
+        """The same recording and settings again, with a different number of people."""
+        if speakers is not None and not 1 <= speakers <= MAX_SPEAKERS:
+            raise ValueError(f"Number of people must be between 1 and {MAX_SPEAKERS}.")
+        if not job.audio.is_file():
+            raise ValueError("The original recording is no longer in the output folder.")
+        options = dataclasses.replace(job.options, num_speakers=speakers, voices_dir=None)
+        new = self.new_job(job.name, options, job.extract)
+        shutil.copyfile(job.audio, new.audio)
+        if job.options.voices_dir is not None and job.options.voices_dir.is_dir():
+            new.options.voices_dir = new.folder / "voices"
+            shutil.copytree(job.options.voices_dir, new.options.voices_dir)
+        self.submit(new)
+        return new
+
     def write(self, job: Job) -> None:
         """Write (or rewrite, after renaming speakers) the result files."""
         assert job.transcript is not None
@@ -304,6 +321,13 @@ class JobManager:
             "finished": job.finished,
             "warnings": job.warnings,
             "files": job.files,
+            "options": {
+                "languages": job.options.languages,
+                "translate_to": job.options.translate_to,
+                "summarize": job.options.summarize,
+                "speakers": job.options.num_speakers,
+                "extract": job.extract,
+            },
         }
         (job.folder / JOB_FILE).write_text(json.dumps(record, ensure_ascii=False, indent=2))
 
@@ -315,21 +339,34 @@ class JobManager:
             try:
                 record = json.loads(record_path.read_text())
                 folder = record_path.parent
+                transcript = Transcript.model_validate_json(
+                    (folder / f"{Path(record['name']).stem}.json").read_text()
+                )
+                saved = record.get("options", {})
+                voices = folder / "voices"
+                options = PipelineOptions(
+                    languages=saved.get("languages", transcript.languages),
+                    translate_to=saved.get("translate_to", transcript.target_language),
+                    summarize=saved.get("summarize", True),
+                    num_speakers=saved.get("speakers"),
+                    voices_dir=voices if voices.is_dir() else None,
+                    reassign_margin=self.settings.reassign_margin or None,
+                )
                 job = Job(
                     record["id"],
                     record["name"],
                     folder,
                     folder / record["audio"],
-                    PipelineOptions(),
+                    options,
+                    extract=saved.get("extract", self.settings.extraction != "off"),
                     state="done",
                     warnings=record.get("warnings", []),
                     created=record["created"],
                     started=record.get("started"),
                     finished=record.get("finished"),
                     files=record.get("files", []),
+                    transcript=transcript,
                 )
-                json_file = folder / f"{job.stem}.json"
-                job.transcript = Transcript.model_validate_json(json_file.read_text())
             except Exception as exc:
                 log.warning("Skipping %s: %s", record_path.parent.name, exc)
                 continue
@@ -436,6 +473,22 @@ def create_app(manager: JobManager) -> Starlette:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(job.transcript.model_dump(mode="json"))
 
+    async def rerun_job(request: Request) -> Response:
+        job = job_or_404(request)
+        if job is None:
+            return not_found()
+        try:
+            body = await request.json()
+            speakers = body.get("speakers") if isinstance(body, dict) else None
+            if speakers is not None and (
+                isinstance(speakers, bool) or not isinstance(speakers, int)
+            ):
+                raise ValueError("Number of people must be a whole number.")
+            new = await run_in_threadpool(manager.rerun, job, speakers)
+        except (ValueError, json.JSONDecodeError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(new.status(manager.queue_position(new)), status_code=201)
+
     return Starlette(
         routes=[
             Route("/", page),
@@ -447,6 +500,7 @@ def create_app(manager: JobManager) -> Starlette:
             Route("/api/jobs/{job_id}/audio", job_audio),
             Route("/api/jobs/{job_id}/files/{name}", job_file),
             Route("/api/jobs/{job_id}/speakers", rename_speakers, methods=["POST"]),
+            Route("/api/jobs/{job_id}/rerun", rerun_job, methods=["POST"]),
         ]
     )
 

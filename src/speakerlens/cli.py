@@ -305,6 +305,9 @@ def doctor(env_file: EnvFile = None) -> None:
         found = importlib.util.find_spec(module.split(".")[0]) is not None
         hint = escape(f"(pip install -e '.[{extra}]')")
         table.add_row(module, ok if found else f"{warn} {hint}")
+    web_ready = all(importlib.util.find_spec(m) for m in ("starlette", "uvicorn", "multipart"))
+    web_hint = escape("(pip install -e '.[web]')")
+    table.add_row("web page (speakerlens web)", ok if web_ready else f"{warn} {web_hint}")
     table.add_row(
         "HF_TOKEN",
         ok if settings.hf_token else f"{bad} (needed to download pyannote; see .env.example)",

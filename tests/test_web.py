@@ -326,3 +326,41 @@ def test_page_and_setup_info(settings, factory, tmp_path, monkeypatch):
 )
 def test_safe_name(given, expected):
     assert web.safe_name(given) == expected
+
+
+def test_run_again_with_another_number_of_people(settings, factory, tmp_path):
+    manager = web.JobManager(settings, tmp_path / "out", factory=factory)
+    app = web.create_app(manager)
+    files = [("audio", "debate.m4a", b"audio-bytes"), ("voices", "Ana.wav", b"v")]
+    status, _, data = upload(app, {"speakers": "", "translate_to": "id"}, files)
+    first = wait(manager, json.loads(data)["id"])
+    status, _, data = call(app, "GET", f"/api/jobs/{first.id}")
+    assert json.loads(data)["speakers_given"] is None and json.loads(data)["can_rerun"]
+
+    body = json.dumps({"speakers": 3}).encode()
+    status, _, data = call(app, "POST", f"/api/jobs/{first.id}/rerun", body)
+    assert status == 201
+    second = wait(manager, json.loads(data)["id"])
+    assert second.id != first.id and second.state == "done"
+    assert second.audio.read_bytes() == b"audio-bytes"
+    _, options = factory.calls[-1]
+    assert options.num_speakers == 3 and options.translate_to == "id"
+    assert options.voices_dir == second.folder / "voices"
+    assert (second.folder / "voices" / "Ana.wav").read_bytes() == b"v"
+    assert json.loads(call(app, "GET", f"/api/jobs/{second.id}")[2])["speakers_given"] == 3
+
+    for bad in (b'{"speakers": 0}', b'{"speakers": "three"}', b'{"speakers": true}', b"not json"):
+        assert call(app, "POST", f"/api/jobs/{first.id}/rerun", bad)[0] == 400
+    assert call(app, "POST", "/api/jobs/nope/rerun", body)[0] == 404
+
+
+def test_a_reloaded_recording_keeps_its_settings(settings, factory, tmp_path):
+    manager = web.JobManager(settings, tmp_path / "out", factory=factory)
+    app = web.create_app(manager)
+    job = wait(manager, json.loads(upload(app, {"speakers": "2", "extract": ""})[2])["id"])
+
+    restarted = web.JobManager(settings, tmp_path / "out", factory=factory, start_worker=False)
+    again = restarted.jobs[job.id]
+    assert again.options.num_speakers == 2 and again.options.translate_to == "en"
+    assert again.extract is False
+    assert again.status()["speakers_given"] == 2

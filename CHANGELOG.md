@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-11-13)
 
 - **Web page** (`speakerlens web`): upload a recording, follow its progress, and read the
   result in the browser: who spoke when as a lane per person, each person's summary with
@@ -8,6 +8,9 @@
   renaming speakers (the downloads follow the new names). Runs locally, one recording at a
   time, and lists earlier recordings after a restart. Installed with `.[web]`, included in
   `.[all]`.
+- When the number of people was found automatically, the result says so and offers to run the
+  recording again with another number.
+- `speakerlens doctor` checks the web page's packages.
 
 ## 0.1.0 (2026-10-31)
 

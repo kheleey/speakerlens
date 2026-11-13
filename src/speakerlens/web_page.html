@@ -89,6 +89,18 @@
     font-size: 13px; text-decoration: none; color: var(--action); border: 1px solid #c4d3f1;
     border-radius: 999px; padding: 3px 11px; background: #fff;
   }
+  .count-note {
+    margin: 14px 0 0; padding: 10px 14px; background: #eef3fc; border-radius: 8px;
+    max-width: 46em; font-size: 14px;
+  }
+  .count-note p { margin: 0; }
+  .count-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .count-row input { width: 76px; }
+  .secondary {
+    border: 1px solid var(--action); color: var(--action); background: #fff; border-radius: 6px;
+    padding: 5px 12px; font-weight: 600; cursor: pointer;
+  }
+  .secondary:disabled { opacity: .55; cursor: default; }
   .warnings { margin: 14px 0 0; font-size: 13.5px; border-left: 3px solid #b7791f; padding-left: 12px; }
   .warnings ul { margin: 2px 0 0; padding-left: 18px; }
 
@@ -492,6 +504,7 @@ function renderResult(job) {
 
   fill($("#view"),
     el("div", { class: "head" }, el("h1", {}, job.name), el("p", { class: "meta" }, meta)),
+    countNote(job),
     downloads,
     warningsBox(job.warnings),
     ribbon(speakers),
@@ -505,6 +518,32 @@ function renderResult(job) {
   const src = `/api/jobs/${job.id}/audio`;
   if (audioEl.getAttribute("src") !== src) audioEl.src = src;
   $("#player").hidden = false;
+}
+
+function countNote(job) {
+  if (job.speakers_given !== null || !job.can_rerun) return null;
+  const n = transcript.speakers.length;
+  const input = el("input", { type: "number", min: "1", max: "20", value: String(n + 1), "aria-label": "Number of people" });
+  const button = el("button", {
+    type: "button", class: "secondary",
+    onclick: async () => {
+      button.disabled = true;
+      try {
+        const next = await api(`/api/jobs/${job.id}/rerun`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ speakers: Number(input.value) }),
+        });
+        await refreshRecent();
+        openJob(next.id);
+      } catch (err) {
+        button.disabled = false;
+        alertInView(err.message);
+      }
+    },
+  }, "Run again");
+  return el("div", { class: "count-note" },
+    el("p", {}, `Found ${n} ${n === 1 ? "person" : "people"} automatically. If that's wrong, run it again with the right number:`),
+    el("div", { class: "count-row" }, input, el("span", {}, "people"), button));
 }
 
 function fileLabel(name) {
