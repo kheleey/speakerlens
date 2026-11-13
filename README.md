@@ -397,7 +397,8 @@ If you leave the number of people empty, the page says how many it found and let
 recording again with a different number; giving the right number helps most when someone keeps
 talking over the others.
 
-The page runs on your machine and has no login, so it only listens on this computer by default.
+The page runs on your machine and has no login, so it only listens on this computer by default
+and refuses requests made by other websites open in your browser.
 On a remote server, open it through VS Code's Ports tab, or run
 `ssh -L 7860:localhost:7860 <server>` on your own computer. `--port` and `--out` change the port
 and the folder.

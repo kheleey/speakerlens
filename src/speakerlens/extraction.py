@@ -112,15 +112,15 @@ class TargetExtractor:
             _import_vendor()
             from wesep.models.bsrnn import BSRNN
 
-            configs = yaml.load(
-                (self.model_dir / "config.yaml").read_text(), Loader=yaml.FullLoader
-            )
+            configs = yaml.safe_load((self.model_dir / "config.yaml").read_text())
             if configs["model"]["tse_model"] != "BSRNN":
                 raise RuntimeError(f"Only BSRNN is supported, not {configs['model']['tse_model']}")
             args = dict(configs["model_args"]["tse_model"])
             args["spk_model_init"] = False  # weights come from the checkpoint
             model = BSRNN(**args)
-            states = torch.load(self.model_dir / "avg_model.pt", map_location="cpu")
+            states = torch.load(
+                self.model_dir / "avg_model.pt", map_location="cpu", weights_only=True
+            )
             state = (
                 states["models"][0] if isinstance(states, dict) and "models" in states else states
             )

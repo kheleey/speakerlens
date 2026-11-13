@@ -12,6 +12,7 @@ import dataclasses
 import importlib.util
 import json
 import logging
+import mimetypes
 import queue
 import re
 import shutil
@@ -22,13 +23,15 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlsplit
 
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
-from starlette.datastructures import UploadFile
+from starlette.datastructures import Headers, MutableHeaders, UploadFile
 from starlette.requests import Request
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from speakerlens import __version__
 from speakerlens.config import Settings
@@ -43,6 +46,22 @@ FORMATS = ["md", "json", "srt", "vtt"]
 LANGUAGES = {"zh+en": ["zh", "en"], "zh": ["zh"], "en": ["en"], "auto": ["auto"]}
 MAX_SPEAKERS = 20
 JOB_FILE = "job.json"
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
+MEDIA_EXTENSIONS = {
+    ".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma", ".amr", ".aif", ".aiff",
+    ".caf", ".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi", ".3gp",
+}  # fmt: skip
+MAX_UPLOAD_BYTES = 4 * 1024**3
+SECURITY_HEADERS = {
+    "content-security-policy": (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; media-src 'self'; connect-src 'self'; frame-ancestors 'none'; "
+        "base-uri 'none'; form-action 'self'"
+    ),
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "no-referrer",
+}
 
 
 class Runner(Protocol):
@@ -83,6 +102,56 @@ def safe_name(name: str, default: str = "recording") -> str:
     name = Path(name.replace("\\", "/")).name
     name = re.sub(r"[^\w.\- ]", "_", name).strip(" .")
     return name[:100] or default
+
+
+def is_media(name: str) -> bool:
+    return Path(name).suffix.lower() in MEDIA_EXTENSIONS
+
+
+def _hostname(host: str) -> str:
+    return (urlsplit(f"//{host}").hostname or "").lower()
+
+
+class RequestGuard:
+    """Lets only this page use the server, and adds the browser's safety headers.
+
+    - Host check (when listening only on this computer): a website can't reach the server
+      through a domain name that points at 127.0.0.1 (DNS rebinding).
+    - Origin check: another website open in the same browser can't upload, rename or rerun.
+    - Uploads over MAX_UPLOAD_BYTES are refused before they're read.
+    """
+
+    def __init__(self, app: ASGIApp, local_only: bool = True) -> None:
+        self.app = app
+        self.local_only = local_only
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        headers = Headers(scope=scope)
+        host = headers.get("host", "")
+        origin = headers.get("origin")
+        problem = None
+        if self.local_only and _hostname(host) not in LOCAL_HOSTS:
+            problem = (403, "This page only answers on 127.0.0.1 or localhost.")
+        elif scope["method"] not in ("GET", "HEAD") and origin is not None:
+            if urlsplit(origin).netloc.lower() != host.lower():
+                problem = (403, "Requests from other websites are refused.")
+        elif int(headers.get("content-length") or 0) > MAX_UPLOAD_BYTES:
+            problem = (413, "The upload is too large.")
+        if problem:
+            await JSONResponse({"error": problem[1]}, status_code=problem[0])(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                response_headers = MutableHeaders(scope=message)
+                for name, value in SECURITY_HEADERS.items():
+                    response_headers.setdefault(name, value)
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
 
 
 def parse_options(form: Mapping[str, str], settings: Settings) -> tuple[PipelineOptions, bool]:
@@ -340,7 +409,7 @@ class JobManager:
                 record = json.loads(record_path.read_text())
                 folder = record_path.parent
                 transcript = Transcript.model_validate_json(
-                    (folder / f"{Path(record['name']).stem}.json").read_text()
+                    (folder / f"{Path(Path(record['name']).name).stem}.json").read_text()
                 )
                 saved = record.get("options", {})
                 voices = folder / "voices"
@@ -354,9 +423,9 @@ class JobManager:
                 )
                 job = Job(
                     record["id"],
-                    record["name"],
+                    Path(record["name"]).name,
                     folder,
-                    folder / record["audio"],
+                    folder / Path(record["audio"]).name,
                     options,
                     extract=saved.get("extract", self.settings.extraction != "off"),
                     state="done",
@@ -382,7 +451,7 @@ def _save_upload(upload: UploadFile, path: Path) -> None:
         shutil.copyfileobj(upload.file, f)
 
 
-def create_app(manager: JobManager) -> Starlette:
+def create_app(manager: JobManager, local_only: bool = True) -> ASGIApp:
     settings = manager.settings
 
     def job_or_404(request: Request) -> Job | None:
@@ -417,13 +486,19 @@ def create_app(manager: JobManager) -> Starlette:
         upload = form.get("audio")
         if not isinstance(upload, UploadFile) or not upload.filename:
             return JSONResponse({"error": "Choose a recording to upload."}, status_code=400)
+        voices = [v for v in form.getlist("voices") if isinstance(v, UploadFile) and v.filename]
+        for f in [upload, *voices]:
+            if not is_media(f.filename or ""):
+                return JSONResponse(
+                    {"error": f"{f.filename} isn't an audio or video file this page accepts."},
+                    status_code=400,
+                )
         try:
             options, extract = parse_options(_form_strings(form), settings)
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         job = manager.new_job(upload.filename, options, extract)
         await run_in_threadpool(_save_upload, upload, job.audio)
-        voices = [v for v in form.getlist("voices") if isinstance(v, UploadFile) and v.filename]
         if voices:
             voices_dir = job.folder / "voices"
             voices_dir.mkdir()
@@ -449,7 +524,10 @@ def create_app(manager: JobManager) -> Starlette:
         job = job_or_404(request)
         if job is None or not job.audio.is_file():
             return not_found()
-        return FileResponse(job.audio)
+        media_type = mimetypes.guess_type(job.audio.name)[0] or ""
+        if not media_type.startswith(("audio/", "video/")):
+            media_type = "application/octet-stream"
+        return FileResponse(job.audio, media_type=media_type)
 
     async def job_file(request: Request) -> Response:
         job = job_or_404(request)
@@ -489,7 +567,7 @@ def create_app(manager: JobManager) -> Starlette:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(new.status(manager.queue_position(new)), status_code=201)
 
-    return Starlette(
+    app = Starlette(
         routes=[
             Route("/", page),
             Route("/api/info", info),
@@ -503,6 +581,7 @@ def create_app(manager: JobManager) -> Starlette:
             Route("/api/jobs/{job_id}/rerun", rerun_job, methods=["POST"]),
         ]
     )
+    return RequestGuard(app, local_only)
 
 
 def serve(
@@ -510,5 +589,6 @@ def serve(
 ) -> None:
     import uvicorn
 
-    app = create_app(JobManager(settings, out_dir))
+    local_only = _hostname(host) in LOCAL_HOSTS
+    app = create_app(JobManager(settings, out_dir), local_only=local_only)
     uvicorn.run(app, host=host, port=port, log_level="warning", access_log=False)

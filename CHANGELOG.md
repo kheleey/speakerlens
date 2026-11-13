@@ -11,6 +11,11 @@
 - When the number of people was found automatically, the result says so and offers to run the
   recording again with another number.
 - `speakerlens doctor` checks the web page's packages.
+- Security: the web page refuses requests from other websites and through other host names,
+  accepts only audio and video uploads (up to 4 GB), and sends the browser's safety headers;
+  the extraction model is loaded with `weights_only=True` and its config with `yaml.safe_load`;
+  minimum versions of starlette and python-multipart include their security fixes; CI runs
+  with read-only permissions.
 
 ## 0.1.0 (2026-10-31)
 

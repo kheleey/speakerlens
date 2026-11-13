@@ -93,7 +93,10 @@ def call(app, method: str, path: str, body: bytes = b"", headers: dict[str, str]
         "raw_path": path.encode(),
         "query_string": b"",
         "root_path": "",
-        "headers": [(k.lower().encode(), v.encode()) for k, v in (headers or {}).items()],
+        "headers": [
+            (k.lower().encode(), v.encode())
+            for k, v in ({"host": "127.0.0.1:7860"} | (headers or {})).items()
+        ],
         "client": ("test", 1),
         "server": ("test", 80),
     }
@@ -364,3 +367,69 @@ def test_a_reloaded_recording_keeps_its_settings(settings, factory, tmp_path):
     assert again.options.num_speakers == 2 and again.options.translate_to == "en"
     assert again.extract is False
     assert again.status()["speakers_given"] == 2
+
+
+def test_other_websites_and_host_names_are_refused(settings, factory, tmp_path):
+    manager = web.JobManager(settings, tmp_path / "out", factory=factory, start_worker=False)
+    app = web.create_app(manager)
+
+    status, headers, _ = call(app, "GET", "/")
+    assert status == 200
+    assert headers["x-content-type-options"] == "nosniff"
+    assert "frame-ancestors 'none'" in headers["content-security-policy"]
+
+    # DNS rebinding: a website whose name points at 127.0.0.1
+    assert call(app, "GET", "/api/jobs", headers={"host": "evil.example:7860"})[0] == 403
+    assert call(app, "GET", "/", headers={"host": "localhost:7860"})[0] == 200
+    assert call(app, "GET", "/", headers={"host": "[::1]:7860"})[0] == 200
+
+    # another website open in the same browser posting to the page
+    body, form_headers = multipart({"speakers": "2"}, [("audio", "meeting.wav", b"x")])
+    status, _, _ = call(
+        app, "POST", "/api/jobs", body, form_headers | {"origin": "https://evil.example"}
+    )
+    assert status == 403 and manager.jobs == {}
+    status, _, _ = call(
+        app, "POST", "/api/jobs", body, form_headers | {"origin": "http://127.0.0.1:7860"}
+    )
+    assert status == 201
+
+    big = {"content-length": str(web.MAX_UPLOAD_BYTES + 1)}
+    assert call(app, "POST", "/api/jobs", b"", big)[0] == 413
+
+    listening_everywhere = web.create_app(manager, local_only=False)
+    assert call(listening_everywhere, "GET", "/", headers={"host": "10.0.0.5:7860"})[0] == 200
+
+
+def test_only_audio_and_video_uploads(settings, factory, tmp_path):
+    manager = web.JobManager(settings, tmp_path / "out", factory=factory, start_worker=False)
+    app = web.create_app(manager)
+    status, _, data = upload(app, files=[("audio", "page.html", b"<script>alert(1)</script>")])
+    assert status == 400 and "page.html" in json.loads(data)["error"]
+    files = [("audio", "talk.m4a", b"x"), ("voices", "Ana.svg", b"<svg/>")]
+    assert upload(app, files=files)[0] == 400
+    assert manager.jobs == {}
+    assert web.is_media("Meeting.MP4") and not web.is_media("notes.txt")
+
+
+def test_audio_is_never_served_as_a_web_page(settings, factory, tmp_path):
+    manager = web.JobManager(settings, tmp_path / "out", factory=factory, start_worker=False)
+    app = web.create_app(manager)
+    job = manager.new_job("talk.html", PipelineOptions(), extract=True)
+    job.audio.write_bytes(b"<script>alert(1)</script>")
+    manager.submit(job)
+    status, headers, _ = call(app, "GET", f"/api/jobs/{job.id}/audio")
+    assert status == 200 and headers["content-type"] == "application/octet-stream"
+    assert headers["x-content-type-options"] == "nosniff"
+
+
+def test_a_tampered_record_cannot_point_outside_its_folder(settings, factory, tmp_path):
+    manager = web.JobManager(settings, tmp_path / "out", factory=factory)
+    app = web.create_app(manager)
+    job = wait(manager, json.loads(upload(app)[2])["id"])
+    record_path = job.folder / web.JOB_FILE
+    record = json.loads(record_path.read_text())
+    record["audio"] = "../../secret.txt"
+    record_path.write_text(json.dumps(record))
+    restarted = web.JobManager(settings, tmp_path / "out", factory=factory, start_worker=False)
+    assert restarted.jobs[job.id].audio == job.folder / "secret.txt"
