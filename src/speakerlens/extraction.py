@@ -27,6 +27,11 @@ MODEL_URL = (
     "bsrnn_ecapa_vox1.tar.gz"
 )
 MODEL_FILES = ("avg_model.pt", "config.yaml")
+# SHA-256 of the two files in MODEL_URL's archive; a download that doesn't match is refused.
+MODEL_SHA256 = {
+    "avg_model.pt": "3d0502171eab31b7cf25835f35d1969b415bb95f2ac52e2c5e2a743ebd8f90e5",
+    "config.yaml": "3bd99d6029a837f9db4a6e57e2cd7bf2f9af226dc3be95ae9862d34af628530d",
+}
 
 
 def model_ready(model_dir: str | Path | None) -> bool:
@@ -37,11 +42,14 @@ def model_ready(model_dir: str | Path | None) -> bool:
     return (d / "avg_model.pt").is_file() and (d / "config.yaml").is_file()
 
 
-def download_model(model_dir: str | Path, url: str = MODEL_URL) -> Path:
+def download_model(
+    model_dir: str | Path, url: str = MODEL_URL, sha256: dict[str, str] | None = None
+) -> Path:
     """Download and unpack the checkpoint into `model_dir`, unless it's already there.
     Only the two model files are taken from the archive, by name, so nothing can be
-    written anywhere else. Offline (HF_HUB_OFFLINE=1 or SPEAKERLENS_OFFLINE=1), it never
-    downloads."""
+    written anywhere else, and they must match their SHA-256 (MODEL_SHA256 for the default
+    URL). Offline (HF_HUB_OFFLINE=1 or SPEAKERLENS_OFFLINE=1), it never downloads."""
+    import hashlib
     import os
     import tarfile
     import tempfile
@@ -50,6 +58,8 @@ def download_model(model_dir: str | Path, url: str = MODEL_URL) -> Path:
     model_dir = Path(model_dir).expanduser()
     if model_ready(model_dir):
         return model_dir
+    if sha256 is None and url == MODEL_URL:
+        sha256 = MODEL_SHA256
     if os.environ.get("HF_HUB_OFFLINE") == "1" or os.environ.get("SPEAKERLENS_OFFLINE") == "1":
         raise RuntimeError(
             f"the extraction model isn't in {model_dir} and downloads are off (offline mode); "
@@ -72,7 +82,13 @@ def download_model(model_dir: str | Path, url: str = MODEL_URL) -> Path:
             for name, member in found.items():
                 source = tar.extractfile(member)
                 assert source is not None
-                (Path(tmp) / name).write_bytes(source.read())
+                data = source.read()
+                if sha256 and hashlib.sha256(data).hexdigest() != sha256.get(name):
+                    raise RuntimeError(
+                        f"the downloaded {name} doesn't match its expected SHA-256, so it was "
+                        "not used; download the model yourself and set TSE_MODEL"
+                    )
+                (Path(tmp) / name).write_bytes(data)
         for name in MODEL_FILES:  # move into place only once both are complete
             (Path(tmp) / name).replace(model_dir / name)
     return model_dir

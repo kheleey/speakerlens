@@ -191,6 +191,39 @@ def test_download_takes_only_the_model_files(tmp_path, monkeypatch):
     assert not (tmp_path / "escape.txt").exists()
 
 
+def test_download_refuses_files_that_dont_match_their_checksum(tmp_path, monkeypatch):
+    import hashlib
+
+    from speakerlens.extraction import MODEL_SHA256, MODEL_URL, download_model, model_ready
+
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+    url = _archive(tmp_path, {"avg_model.pt": b"weights", "config.yaml": b"model: {}"})
+    good = {
+        n: hashlib.sha256(d).hexdigest()
+        for n, d in [("avg_model.pt", b"weights"), ("config.yaml", b"model: {}")]
+    }
+    assert model_ready(download_model(tmp_path / "ok", url, sha256=good))
+
+    tampered = good | {"avg_model.pt": "0" * 64}
+    with pytest.raises(RuntimeError, match="SHA-256"):
+        download_model(tmp_path / "bad", url, sha256=tampered)
+    assert not (tmp_path / "bad" / "avg_model.pt").exists()
+
+    import shutil
+    import urllib.request
+
+    fetched = []
+
+    def fake_fetch(source, target):
+        fetched.append(source)
+        shutil.copy(urllib.request.url2pathname(url.removeprefix("file://")), target)
+
+    monkeypatch.setattr(urllib.request, "urlretrieve", fake_fetch)
+    with pytest.raises(RuntimeError, match="SHA-256"):
+        download_model(tmp_path / "default")
+    assert fetched == [MODEL_URL] and set(MODEL_SHA256) == {"avg_model.pt", "config.yaml"}
+
+
 def test_download_refuses_offline_and_incomplete_archives(tmp_path, monkeypatch):
     from speakerlens.extraction import download_model
 
